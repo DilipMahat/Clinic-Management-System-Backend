@@ -1,0 +1,102 @@
+import express from 'express';
+import * as doctorController from './doctor.controller.js';
+import { 
+  createDoctorSchema, 
+  updateDoctorSchema,
+  doctorOnboardingSchema,
+  doctorIdSchema,
+  rateDoctorSchema
+} from './doctor.schema.js';
+import {verifyToken, authorize} from '../../middleware/authMiddleware.js'
+import { validate } from '../../middleware/validateMiddleware.js'
+import { ROLES } from '../../constants/roles.js';
+import { uploadAvatar, uploadFields } from '../../config/multer.js';
+import { handleMulterError } from '../../middleware/multerMiddleware.js';
+
+const router = express.Router();
+
+// Public routes (no authentication required)
+router.get('/public', doctorController.getAllDoctors);
+router.get('/public/:id', doctorController.getDoctorById);
+
+// proctected routes
+router.use(verifyToken);
+
+// ==================== DOCTOR ROUTES ====================
+
+// // Create doctor — supports profilePicture + certificates upload
+router.post(
+  '/',
+  authorize(ROLES.ADMIN),
+    uploadFields,
+  handleMulterError,
+  validate(createDoctorSchema),
+  doctorController.createDoctor
+);
+
+// Get all doctors with pagination and filters
+router.get(
+  '/',
+  authorize(ROLES.ADMIN, ROLES.PATIENT, ROLES.RECEPTIONIST),
+  doctorController.getAllDoctors
+);
+
+// Get current user's doctor profile
+router.get('/me', authorize(ROLES.DOCTOR), doctorController.getDoctorByUserId);
+
+// Update current doctor's profile picture
+router.put(
+  '/me/profile-picture',
+  authorize(ROLES.DOCTOR),
+  uploadAvatar,
+  handleMulterError,
+  doctorController.updateDoctorProfilePicture
+);
+
+router.post(
+  '/onboarding',
+  authorize(ROLES.DOCTOR),
+  uploadFields,
+  handleMulterError,
+  validate(doctorOnboardingSchema),
+  doctorController.submitDoctorOnboarding
+);
+
+// Get doctor by ID
+router.get(
+  '/:id',
+  authorize(ROLES.ADMIN, ROLES.PATIENT, ROLES.RECEPTIONIST, ROLES.DOCTOR),
+  doctorController.getDoctorById
+);
+
+// Update doctor — supports new certificates upload and removals
+router.put(
+  '/:id',
+  authorize(ROLES.ADMIN),
+  uploadFields,
+  handleMulterError,
+  validate(updateDoctorSchema),
+  doctorController.updateDoctor
+);
+
+// Delete doctor 
+router.delete('/:id', authorize(ROLES.ADMIN), doctorController.deleteDoctor);
+
+// Rate doctor (Patient only)
+router.post('/:id/rate', authorize(ROLES.PATIENT), validate(rateDoctorSchema), doctorController.rateDoctor);
+
+// Get doctor statistics
+router.get(
+  '/:id/statistics',
+  authorize(ROLES.ADMIN, ROLES.DOCTOR, ROLES.RECEPTIONIST),
+  doctorController.getDoctorStatistics
+);
+
+// Get doctor availability
+router.get(
+  '/:id/availability',
+  authorize(ROLES.ADMIN, ROLES.PATIENT, ROLES.RECEPTIONIST,ROLES.DOCTOR),
+  doctorController.getDoctorAvailability
+);
+
+export default router;
